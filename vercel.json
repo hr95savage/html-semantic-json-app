@@ -3,6 +3,14 @@
     {
       "source": "/api/extract",
       "destination": "/api/extract.py"
+    },
+    {
+      "source": "/api/supabase/sign",
+      "destination": "/api/supabase_sign.py"
+    },
+    {
+      "source": "/api/supabase/process",
+      "destination": "/api/supabase_process.py"
     }
   ]
 }

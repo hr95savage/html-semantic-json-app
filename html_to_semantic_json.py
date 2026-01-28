@@ -11,7 +11,7 @@ import re
 import sys
 import hashlib
 import argparse
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Tuple
 from bs4 import BeautifulSoup, Tag, NavigableString
 from urllib.parse import urljoin, urlparse
 from copy import deepcopy
@@ -57,11 +57,12 @@ class HTMLToSemanticJSON:
     def extract(self) -> Dict[str, Any]:
         """Main extraction method."""
         source = self._extract_source_metadata()
-        blocks = self._extract_blocks()
+        blocks, validation = self._extract_blocks()
         
         return {
             "source": source,
-            "blocks": blocks
+            "blocks": blocks,
+            "validation": validation
         }
     
     def _extract_source_metadata(self) -> Dict[str, str]:
@@ -103,11 +104,11 @@ class HTMLToSemanticJSON:
         
         return source
     
-    def _extract_blocks(self) -> List[Dict[str, Any]]:
-        """Extract all blocks from main content."""
+    def _extract_blocks(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Extract all blocks from main content and return validation."""
         main_content = self._find_main_content()
         if not main_content:
-            return []
+            return [], {"status": "warn", "h1_count": 0, "messages": ["No H1 found in extracted blocks."]}
         
         # Clone main content to avoid modifying original
         main_content_str = str(main_content)
@@ -148,8 +149,22 @@ class HTMLToSemanticJSON:
         blocks = self._deduplicate_blocks(blocks)
         
         # Validate H1 count (should be exactly one)
-        h1_count = sum(1 for b in blocks if b.get('type') == 'heading' and b.get('level') == 1)
-        if h1_count > 1:
+        h1_count = sum(
+            1
+            for b in blocks
+            if b.get('type') == 'heading' and b.get('level') == 1
+        )
+        validation = {
+            "status": "pass",
+            "h1_count": h1_count,
+            "messages": []
+        }
+
+        if h1_count == 0:
+            validation["status"] = "warn"
+            validation["messages"].append("No H1 found in extracted blocks.")
+        elif h1_count > 1:
+            original_h1_count = h1_count
             h1_seen = False
             filtered_blocks = []
             for block in blocks:
@@ -160,8 +175,19 @@ class HTMLToSemanticJSON:
                 else:
                     filtered_blocks.append(block)
             blocks = filtered_blocks
+            h1_count = sum(
+                1
+                for b in blocks
+                if b.get('type') == 'heading' and b.get('level') == 1
+            )
+            validation["status"] = "warn"
+            validation["messages"].append(
+                f"Multiple H1 headings found ({original_h1_count}). Kept the first."
+            )
+
+        validation["h1_count"] = h1_count
         
-        return blocks
+        return blocks, validation
     
     def _build_id_index(self, elem: Tag):
         """Build index of ID -> element within main_content subtree."""
@@ -266,8 +292,19 @@ class HTMLToSemanticJSON:
         if not isinstance(elem, Tag):
             return False
         
-        # Check aria-hidden (global signal)
-        if elem.get('aria-hidden') == 'true':
+        def _is_non_content_aria_hidden(target: Tag) -> bool:
+            if not isinstance(target, Tag):
+                return False
+            if target.get('aria-hidden') != 'true':
+                return False
+            has_content_tags = target.find(
+                ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'table']
+            ) is not None
+            text_len = len(target.get_text(strip=True) or "")
+            return (not has_content_tags) and text_len < 10
+
+        # Check aria-hidden (only treat as hidden if non-content)
+        if _is_non_content_aria_hidden(elem):
             return True
         
         # Check inline styles first (global signal, not class-based)
@@ -302,7 +339,7 @@ class HTMLToSemanticJSON:
                 # Only check parents for global signals (aria-hidden)
                 for parent in elem.parents:
                     if isinstance(parent, Tag):
-                        if parent.get('aria-hidden') == 'true':
+                        if _is_non_content_aria_hidden(parent):
                             return True
                 # No class-based hidden, no parent aria-hidden, no inline styles -> not hidden
                 return False
@@ -328,7 +365,7 @@ class HTMLToSemanticJSON:
                     if not self.config.get('drop_breakpoint_hidden', False):
                         # Parent has breakpoint class and we're keeping breakpoint-hidden content
                         # Skip this parent's class check, but still check aria-hidden
-                        if parent.get('aria-hidden') == 'true':
+                        if _is_non_content_aria_hidden(parent):
                             return True
                         continue
                     else:
@@ -341,7 +378,7 @@ class HTMLToSemanticJSON:
                         return True
                 
                 # Check parent aria-hidden (global signal)
-                if parent.get('aria-hidden') == 'true':
+                if _is_non_content_aria_hidden(parent):
                     return True
         
         return False
@@ -618,6 +655,25 @@ class HTMLToSemanticJSON:
         
         candidates = []
         
+        def is_excluded(elem: Tag) -> bool:
+            if not isinstance(elem, Tag):
+                return True
+            if elem.name in excluded_tags:
+                return True
+            if elem.get('role') in excluded_roles:
+                return True
+            for parent in elem.parents:
+                if isinstance(parent, Tag):
+                    if parent.name in excluded_tags or parent.get('role') in excluded_roles:
+                        return True
+            return False
+        
+        def first_eligible_h1() -> Optional[Tag]:
+            for h1 in self.soup.find_all('h1'):
+                if not is_excluded(h1):
+                    return h1
+            return None
+        
         def score_element(elem: Tag) -> float:
             """Calculate text density score."""
             if not isinstance(elem, Tag):
@@ -669,7 +725,17 @@ class HTMLToSemanticJSON:
         
         if candidates:
             candidates.sort(key=lambda x: x[0], reverse=True)
-            return candidates[0][1]
+            best = candidates[0][1]
+            eligible_h1 = first_eligible_h1()
+            if eligible_h1 and eligible_h1 not in best.descendants and best is not eligible_h1:
+                node = best
+                while node and node.name != 'body':
+                    if isinstance(node, Tag) and eligible_h1 in node.descendants:
+                        if not is_excluded(node):
+                            best = node
+                            break
+                    node = node.parent if isinstance(node.parent, Tag) else None
+            return best
         
         return body
     
@@ -1059,7 +1125,7 @@ class HTMLToSemanticJSON:
                     cta = self._extract_cta(child)
                     if cta:
                         blocks.append(cta)
-                    continue
+                        continue
                 
                 # Recursively process child - this will handle semantic blocks and recurse as needed
                 child_context = self._child_context(context, child)
