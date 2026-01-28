@@ -37,10 +37,16 @@ export default function Home() {
         })
       });
 
-      const signPayload = await signResponse.json();
+      const signText = await signResponse.text();
+      let signPayload: { uploads?: Array<{ path: string; signedUrl: string; contentType?: string }>; error?: string } | null = null;
+      try {
+        signPayload = signText ? JSON.parse(signText) : null;
+      } catch {
+        signPayload = null;
+      }
       if (!signResponse.ok) {
         setError(
-          `Upload signing failed: ${signPayload?.error || signResponse.statusText}`
+          `Upload signing failed: ${signPayload?.error || signText || signResponse.statusText}`
         );
         return;
       }
@@ -81,11 +87,17 @@ export default function Home() {
           paths: uploads.map((upload: { path: string }) => upload.path)
         })
       });
-      const processPayload = await processResponse.json();
+      const processText = await processResponse.text();
+      let processPayload: { downloadUrl?: string; error?: string } | null = null;
+      try {
+        processPayload = processText ? JSON.parse(processText) : null;
+      } catch {
+        processPayload = null;
+      }
       if (!processResponse.ok) {
         setError(
           `Processing failed: ${
-            processPayload?.error || processResponse.statusText
+            processPayload?.error || processText || processResponse.statusText
           }`
         );
         return;

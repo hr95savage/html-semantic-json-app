@@ -1,4 +1,15 @@
 {
+  "functions": {
+    "api/supabase_process.py": {
+      "maxDuration": 300
+    },
+    "api/supabase_sign.py": {
+      "maxDuration": 60
+    },
+    "api/extract.py": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     {
       "source": "/api/extract",
