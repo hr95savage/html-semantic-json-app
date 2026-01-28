@@ -58,160 +58,199 @@ export default function Home() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#050505",
-        color: "#ffffff",
-        fontFamily: "Inter, system-ui, sans-serif"
+        background: "#0a0a0a",
+        color: "#e5e5e5",
+        fontFamily:
+          "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
       }}
     >
       <header
         style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 72,
+          background: "#0a0a0a",
+          borderBottom: "1px solid #1f1f1f",
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "28px 40px",
-          borderBottom: "1px solid #1a1a1a"
+          justifyContent: "flex-end",
+          padding: "0 24px",
+          zIndex: 100
         }}
       >
-        <div style={{ fontSize: 14, letterSpacing: "0.24em" }}>SAVAGE</div>
         <img
           src="/logo.png"
           alt="Savage"
-          style={{ height: 28, objectFit: "contain" }}
+          style={{ height: 112, width: "auto", display: "block" }}
         />
       </header>
 
-      <main style={{ maxWidth: 980, margin: "0 auto", padding: "48px 24px" }}>
-        <section style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 36, marginBottom: 12 }}>
-            HTML to Semantic JSON Extractor
-          </h1>
-          <p style={{ color: "#bdbdbd", maxWidth: 640, lineHeight: 1.6 }}>
-            Upload a rendered HTML file to extract structured semantic JSON for
-            SEO analysis.
-          </p>
-        </section>
-
-        <section
+      <main
+        style={{
+          paddingTop: 72,
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px 32px"
+        }}
+      >
+        <div
           style={{
-            background: "#0f0f0f",
-            border: "1px solid #1f1f1f",
-            borderRadius: 16,
-            padding: 28,
-            marginBottom: 28
+            background: "#141414",
+            border: "1px solid #262626",
+            borderRadius: 20,
+            padding: 48,
+            maxWidth: 560,
+            width: "100%"
           }}
         >
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 18, marginBottom: 6 }}>Upload HTML</div>
-            <div style={{ color: "#9b9b9b", fontSize: 14 }}>
-              Select a single rendered HTML file to process.
-            </div>
-          </div>
+          <h1
+            style={{
+              color: "#ffffff",
+              marginBottom: 8,
+              fontSize: "1.5rem",
+              fontWeight: 600
+            }}
+          >
+            HTML to Semantic JSON Extractor
+          </h1>
+          <p style={{ color: "#a3a3a3", marginBottom: 28, fontSize: "0.9rem" }}>
+            Upload a rendered HTML file to extract semantic JSON.
+          </p>
 
-          <form onSubmit={handleSubmit} style={{ display: "flex", gap: 16 }}>
-            <label
-              style={{
-                flex: 1,
-                background: "#090909",
-                border: "1px dashed #2c2c2c",
-                padding: "16px 18px",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                gap: 12
-              }}
-            >
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: 24 }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: 8,
+                  color: "#d4d4d4",
+                  fontWeight: 500,
+                  fontSize: "0.875rem"
+                }}
+              >
+                HTML File
+              </label>
               <input
                 type="file"
                 accept=".html,text/html"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                style={{ color: "#ffffff" }}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  background: "#0a0a0a",
+                  border: "1px solid #333",
+                  borderRadius: 8,
+                  fontSize: "0.95rem",
+                  color: "#e5e5e5"
+                }}
               />
-              <span style={{ color: "#9b9b9b", fontSize: 13 }}>
-                {file ? file.name : "Choose HTML file"}
-              </span>
-            </label>
+              <div
+                style={{
+                  marginTop: 8,
+                  color: "#737373",
+                  fontSize: "0.8rem"
+                }}
+              >
+                {file ? file.name : "Choose a rendered HTML file."}
+              </div>
+            </div>
 
             <button
               type="submit"
               disabled={loading}
               style={{
-                padding: "14px 22px",
-                borderRadius: 12,
-                border: "1px solid #ffffff",
-                background: loading ? "#222222" : "#ffffff",
-                color: loading ? "#bdbdbd" : "#050505",
+                width: "100%",
+                padding: "14px",
+                background: "#ffffff",
+                color: "#0a0a0a",
+                border: "none",
+                borderRadius: 8,
+                fontSize: "0.95rem",
                 fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer"
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1
               }}
             >
               {loading ? "Processing..." : "Extract JSON"}
             </button>
           </form>
-        </section>
 
-        {error && (
-          <div
-            style={{
-              color: "#ff6b6b",
-              background: "#1b0b0b",
-              border: "1px solid #3a0f0f",
-              borderRadius: 12,
-              padding: "12px 16px",
-              marginBottom: 18
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {result && (
-          <section
-            style={{
-              background: "#0f0f0f",
-              border: "1px solid #1f1f1f",
-              borderRadius: 16,
-              padding: 24
-            }}
-          >
+          {error && (
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12
+                marginTop: 20,
+                padding: 14,
+                background: "#0a0a0a",
+                border: "1px solid #262626",
+                borderRadius: 8,
+                color: "#ef4444",
+                fontWeight: 600
               }}
             >
-              <div style={{ fontSize: 16 }}>Output</div>
-              <button
-                onClick={downloadJson}
+              {error}
+            </div>
+          )}
+
+          {result && (
+            <div
+              style={{
+                marginTop: 28,
+                padding: 20,
+                background: "#0a0a0a",
+                border: "1px solid #262626",
+                borderRadius: 8
+              }}
+            >
+              <div
                 style={{
-                  border: "1px solid #ffffff",
-                  background: "transparent",
-                  color: "#ffffff",
-                  padding: "8px 14px",
-                  borderRadius: 10,
-                  cursor: "pointer"
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 12
                 }}
               >
-                Download JSON
-              </button>
+                <span style={{ fontWeight: 600, color: "#a3a3a3" }}>
+                  Output
+                </span>
+                <button
+                  onClick={downloadJson}
+                  style={{
+                    padding: "10px 20px",
+                    background: "#262626",
+                    color: "#ffffff",
+                    border: "1px solid #404040",
+                    borderRadius: 8,
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Download JSON
+                </button>
+              </div>
+              <pre
+                style={{
+                  background: "#0a0a0a",
+                  color: "#a3a3a3",
+                  padding: 14,
+                  borderRadius: 6,
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: "0.8rem",
+                  maxHeight: 220,
+                  overflowY: "auto",
+                  border: "1px solid #1f1f1f",
+                  whiteSpace: "pre-wrap"
+                }}
+              >
+                {result}
+              </pre>
             </div>
-            <pre
-              style={{
-                background: "#080808",
-                borderRadius: 12,
-                padding: 16,
-                maxHeight: 520,
-                overflow: "auto",
-                whiteSpace: "pre-wrap",
-                color: "#eaeaea",
-                border: "1px solid #1f1f1f"
-              }}
-            >
-              {result}
-            </pre>
-          </section>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );
