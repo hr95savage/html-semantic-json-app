@@ -101,9 +101,9 @@ export default function Home() {
           style={{
             background: "#141414",
             border: "1px solid #262626",
-            borderRadius: 20,
+            borderRadius: 0,
             padding: 48,
-            maxWidth: 560,
+            maxWidth: "100%",
             width: "100%"
           }}
         >
