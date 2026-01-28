@@ -135,28 +135,53 @@ export default function Home() {
                 HTML File
               </label>
               <input
+                id="html-file"
                 type="file"
                 accept=".html,text/html"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                style={{ display: "none" }}
+              />
+              <label
+                htmlFor="html-file"
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
                   width: "100%",
                   padding: "12px 14px",
                   background: "#0a0a0a",
                   border: "1px solid #333",
                   borderRadius: 8,
-                  fontSize: "0.95rem",
-                  color: "#e5e5e5"
-                }}
-              />
-              <div
-                style={{
-                  marginTop: 8,
-                  color: "#737373",
-                  fontSize: "0.8rem"
+                  cursor: "pointer"
                 }}
               >
-                {file ? file.name : "Choose a rendered HTML file."}
-              </div>
+                <span
+                  style={{
+                    color: "#a3a3a3",
+                    fontSize: "0.9rem",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  {file ? file.name : "Choose a rendered HTML file"}
+                </span>
+                <span
+                  style={{
+                    padding: "8px 12px",
+                    background: "#262626",
+                    border: "1px solid #404040",
+                    borderRadius: 8,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: "#ffffff",
+                    whiteSpace: "nowrap"
+                  }}
+                >
+                  Browse
+                </span>
+              </label>
             </div>
 
             <button
