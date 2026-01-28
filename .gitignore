@@ -9,3 +9,4 @@ output/
 .DS_Store
 rendered_*.html
 rendered_*.html.zip
+.vercel
