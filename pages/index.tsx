@@ -153,7 +153,8 @@ export default function Home() {
                   background: "#0a0a0a",
                   border: "1px solid #333",
                   borderRadius: 8,
-                  cursor: "pointer"
+                  cursor: "pointer",
+                  boxSizing: "border-box"
                 }}
               >
                 <span
@@ -197,7 +198,8 @@ export default function Home() {
                 fontSize: "0.95rem",
                 fontWeight: 600,
                 cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.6 : 1
+                opacity: loading ? 0.6 : 1,
+                boxSizing: "border-box"
               }}
             >
               {loading ? "Processing..." : "Extract JSON"}
