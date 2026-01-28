@@ -5,6 +5,7 @@ export default function Home() {
   const [result, setResult] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const apiUrl = process.env.NEXT_PUBLIC_EXTRACT_URL || "/api/extract";
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -19,7 +20,7 @@ export default function Home() {
     setLoading(true);
     try {
       const htmlText = await file.text();
-      const response = await fetch("/api/extract", {
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "text/html; charset=utf-8"
