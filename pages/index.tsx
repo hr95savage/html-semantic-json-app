@@ -94,7 +94,7 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "48px 0"
+          padding: "0 0"
         }}
       >
         <div
