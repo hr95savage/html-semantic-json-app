@@ -76,7 +76,7 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-start",
-          padding: 0,
+          padding: "0 24px",
           zIndex: 100
         }}
       >
@@ -94,16 +94,16 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "48px 0"
+          padding: "48px 32px"
         }}
       >
         <div
           style={{
             background: "#141414",
             border: "1px solid #262626",
-            borderRadius: 0,
+            borderRadius: 20,
             padding: 48,
-            maxWidth: "100%",
+            maxWidth: 560,
             width: "100%"
           }}
         >
