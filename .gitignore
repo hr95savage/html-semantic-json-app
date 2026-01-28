@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.vercel/
+__pycache__/
+*.pyc
+.env*.local
+output/
+*.log
+.DS_Store
+rendered_*.html
+rendered_*.html.zip
