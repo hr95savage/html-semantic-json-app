@@ -20,7 +20,7 @@ export default function Home() {
   const pollStartRef = useRef<number | null>(null);
   const processingStepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  const POLL_TIMEOUT_MS = 60 * 60 * 1000; // 1 hour (large files can be slow)
   const EXTRACT_STEP_SECONDS = 8; // advance to next file every N seconds (estimate)
 
   const stopProcessingStep = () => {
@@ -49,7 +49,7 @@ export default function Home() {
         stopProcessingStep();
         setPhase("error");
         setError(
-          "Processing is taking longer than usual. The job may have been interrupted. Please try uploading again."
+          "Processing is taking longer than usual. The job may still be running — try \"Check status again\" below, or upload again if needed."
         );
         setLoading(false);
         pollStartRef.current = null;
@@ -546,18 +546,45 @@ export default function Home() {
           )}
 
           {error && (
-            <div
-              style={{
-                marginTop: 20,
-                padding: 14,
-                background: "#0a0a0a",
-                border: "1px solid #262626",
-                borderRadius: 8,
-                color: "#ef4444",
-                fontWeight: 600
-              }}
-            >
-              {error}
+            <div style={{ marginTop: 20 }}>
+              <div
+                style={{
+                  padding: 14,
+                  background: "#0a0a0a",
+                  border: "1px solid #262626",
+                  borderRadius: 8,
+                  color: "#ef4444",
+                  fontWeight: 600
+                }}
+              >
+                {error}
+              </div>
+              {jobId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setLoading(true);
+                    setPhase("processing");
+                    setStatus("Checking job status...");
+                    if (files.length > 0) startProcessingStep(files.length);
+                    pollJobStatus(jobId);
+                  }}
+                  style={{
+                    marginTop: 10,
+                    padding: "10px 16px",
+                    background: "#262626",
+                    color: "#e5e5e5",
+                    border: "1px solid #404040",
+                    borderRadius: 8,
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    cursor: "pointer"
+                  }}
+                >
+                  Check status again
+                </button>
+              )}
             </div>
           )}
 
