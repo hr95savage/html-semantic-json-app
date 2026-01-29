@@ -5,6 +5,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import quote
+from datetime import timedelta
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import requests
@@ -79,6 +80,35 @@ def _update_job(rest_base: str, headers: dict, job_id: str, payload: dict) -> No
     requests.patch(url, headers=headers, json=payload, timeout=30)
 
 
+# Jobs stuck in "processing" (e.g. worker restarted mid-job) are marked failed so UI and worker can recover.
+STALE_PROCESSING_MINUTES = 15
+
+
+def _mark_stale_processing_jobs_failed(rest_base: str, headers: dict) -> None:
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=STALE_PROCESSING_MINUTES)).isoformat()
+    url = (
+        f"{rest_base}/extraction_jobs"
+        f"?status=eq.processing&started_at=lt.{quote(cutoff, safe='')}&select=id"
+    )
+    response = requests.get(url, headers=headers, timeout=30)
+    if not response.ok or not response.json():
+        return
+    for row in response.json():
+        job_id = row.get("id")
+        if job_id:
+            _update_job(
+                rest_base,
+                headers,
+                job_id,
+                {
+                    "status": "failed",
+                    "error": "Job timed out (worker restarted or interrupted). Please try again.",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            print(f"[worker] Marked stale job {job_id} as failed.", flush=True)
+
+
 def main() -> None:
     supabase_url = _require_env("SUPABASE_URL").rstrip("/")
     service_role_key = _require_env("SUPABASE_SERVICE_ROLE_KEY")
@@ -93,6 +123,7 @@ def main() -> None:
 
     print("[worker] Started, polling for jobs.", flush=True)
     while True:
+        _mark_stale_processing_jobs_failed(rest_base, headers)
         job = _fetch_next_job(rest_base, headers)
         if not job:
             time.sleep(5)

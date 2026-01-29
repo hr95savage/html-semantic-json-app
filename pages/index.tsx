@@ -18,6 +18,9 @@ export default function Home() {
     typeof window !== "undefined" && window.location.hostname === "localhost";
 
   const processingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef<number | null>(null);
+
+  const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
   const startProcessingSimulation = (totalFiles: number) => {
     if (processingIntervalRef.current) clearInterval(processingIntervalRef.current);
@@ -38,7 +41,21 @@ export default function Home() {
   };
 
   const pollJobStatus = async (jobId: string) => {
+    pollStartRef.current = Date.now();
     const poll = async () => {
+      if (
+        pollStartRef.current !== null &&
+        Date.now() - pollStartRef.current > POLL_TIMEOUT_MS
+      ) {
+        stopProcessingSimulation();
+        setPhase("error");
+        setError(
+          "Processing is taking longer than usual. The job may have been interrupted. Please try uploading again."
+        );
+        setLoading(false);
+        pollStartRef.current = null;
+        return;
+      }
       const response = await fetch(
         `${apiBase}/api/jobs?job_id=${encodeURIComponent(jobId)}`
       );
@@ -68,6 +85,7 @@ export default function Home() {
       }
       if (!response.ok) {
         stopProcessingSimulation();
+        pollStartRef.current = null;
         setPhase("error");
         setError(`Job check failed: ${payload?.error || text || response.statusText}`);
         setLoading(false);
@@ -76,6 +94,7 @@ export default function Home() {
 
       if (payload?.status === "completed" && payload.downloadUrl) {
         stopProcessingSimulation();
+        pollStartRef.current = null;
         setPhase("done");
         setDownloadUrl(encodeURI(payload.downloadUrl));
         setStatus("Ready to download.");
@@ -85,6 +104,7 @@ export default function Home() {
 
       if (payload?.status === "failed") {
         stopProcessingSimulation();
+        pollStartRef.current = null;
         setPhase("error");
         setError(payload.error || "Processing failed.");
         setLoading(false);
