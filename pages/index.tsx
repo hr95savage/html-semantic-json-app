@@ -9,6 +9,59 @@ export default function Home() {
   const [uploadedCount, setUploadedCount] = useState(0);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
 
+  const pollJobStatus = async (jobId: string) => {
+    const poll = async () => {
+      const response = await fetch(
+        `${apiBase}/api/jobs?job_id=${encodeURIComponent(jobId)}`
+      );
+      const text = await response.text();
+      // #region agent log
+      fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "pages/index.tsx:18",
+          message: "job_status",
+          data: { status: response.status, length: text.length },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "H8"
+        })
+      }).catch(() => {});
+      // #endregion
+      let payload: { status?: string; downloadUrl?: string; error?: string } | null = null;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        payload = null;
+      }
+      if (!response.ok) {
+        setError(`Job check failed: ${payload?.error || text || response.statusText}`);
+        setLoading(false);
+        return;
+      }
+
+      if (payload?.status === "completed" && payload.downloadUrl) {
+        setDownloadUrl(encodeURI(payload.downloadUrl));
+        setStatus("Ready to download.");
+        setLoading(false);
+        return;
+      }
+
+      if (payload?.status === "failed") {
+        setError(payload.error || "Processing failed.");
+        setLoading(false);
+        return;
+      }
+
+      setStatus("Processing files...");
+      setTimeout(poll, 5000);
+    };
+
+    poll();
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -38,6 +91,21 @@ export default function Home() {
       });
 
       const signText = await signResponse.text();
+      // #region agent log
+      fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "pages/index.tsx:40",
+          message: "sign_response",
+          data: { status: signResponse.status, length: signText.length },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "H1"
+        })
+      }).catch(() => {});
+      // #endregion
       let signPayload: { uploads?: Array<{ path: string; signedUrl: string; contentType?: string }>; error?: string } | null = null;
       try {
         signPayload = signText ? JSON.parse(signText) : null;
@@ -88,7 +156,22 @@ export default function Home() {
         })
       });
       const processText = await processResponse.text();
-      let processPayload: { downloadUrl?: string; error?: string } | null = null;
+      // #region agent log
+      fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "pages/index.tsx:90",
+          message: "process_response",
+          data: { status: processResponse.status, length: processText.length },
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+          runId: "run1",
+          hypothesisId: "H2"
+        })
+      }).catch(() => {});
+      // #endregion
+      let processPayload: { jobId?: string; status?: string; error?: string } | null = null;
       try {
         processPayload = processText ? JSON.parse(processText) : null;
       } catch {
@@ -100,19 +183,20 @@ export default function Home() {
             processPayload?.error || processText || processResponse.statusText
           }`
         );
+        setLoading(false);
         return;
       }
 
-      if (processPayload?.downloadUrl) {
-        setDownloadUrl(encodeURI(processPayload.downloadUrl));
-        setStatus("Ready to download.");
-      } else {
-        setError("Processing completed, but no download URL was returned.");
+      if (processPayload?.jobId) {
+        setStatus("Queued for processing...");
+        pollJobStatus(processPayload.jobId);
+        return;
       }
+
+      setError("Processing started, but no job ID was returned.");
+      setLoading(false);
     } catch (err) {
       setError(`Unexpected error: ${err}`);
-    } finally {
-      setLoading(false);
     }
   };
 
