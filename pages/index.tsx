@@ -7,7 +7,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [uploadedCount, setUploadedCount] = useState(0);
+  const [jobId, setJobId] = useState<string>("");
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
+
+  const canLogDebug =
+    typeof window !== "undefined" && window.location.hostname === "localhost";
 
   const pollJobStatus = async (jobId: string) => {
     const poll = async () => {
@@ -16,19 +20,21 @@ export default function Home() {
       );
       const text = await response.text();
       // #region agent log
-      fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "pages/index.tsx:18",
-          message: "job_status",
-          data: { status: response.status, length: text.length },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "H8"
-        })
-      }).catch(() => {});
+      if (canLogDebug) {
+        fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "pages/index.tsx:18",
+            message: "job_status",
+            data: { status: response.status, length: text.length },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "H8"
+          })
+        }).catch(() => {});
+      }
       // #endregion
       let payload: { status?: string; downloadUrl?: string; error?: string } | null = null;
       try {
@@ -55,7 +61,7 @@ export default function Home() {
         return;
       }
 
-      setStatus("Processing files...");
+      setStatus(`Processing files... (${jobId.slice(0, 8)})`);
       setTimeout(poll, 5000);
     };
 
@@ -68,6 +74,7 @@ export default function Home() {
     setDownloadUrl("");
     setStatus("");
     setUploadedCount(0);
+    setJobId("");
 
     if (!files.length) {
       setError("Please select one or more HTML files to upload.");
@@ -92,19 +99,21 @@ export default function Home() {
 
       const signText = await signResponse.text();
       // #region agent log
-      fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "pages/index.tsx:40",
-          message: "sign_response",
-          data: { status: signResponse.status, length: signText.length },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "H1"
-        })
-      }).catch(() => {});
+      if (canLogDebug) {
+        fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "pages/index.tsx:40",
+            message: "sign_response",
+            data: { status: signResponse.status, length: signText.length },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "H1"
+          })
+        }).catch(() => {});
+      }
       // #endregion
       let signPayload: { uploads?: Array<{ path: string; signedUrl: string; contentType?: string }>; error?: string } | null = null;
       try {
@@ -157,19 +166,21 @@ export default function Home() {
       });
       const processText = await processResponse.text();
       // #region agent log
-      fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "pages/index.tsx:90",
-          message: "process_response",
-          data: { status: processResponse.status, length: processText.length },
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-          runId: "run1",
-          hypothesisId: "H2"
-        })
-      }).catch(() => {});
+      if (canLogDebug) {
+        fetch("http://127.0.0.1:7243/ingest/f6d307e4-5b0c-4cc3-9b40-1f63f1b83f10", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "pages/index.tsx:90",
+            message: "process_response",
+            data: { status: processResponse.status, length: processText.length },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "H2"
+          })
+        }).catch(() => {});
+      }
       // #endregion
       let processPayload: { jobId?: string; status?: string; error?: string } | null = null;
       try {
@@ -188,7 +199,8 @@ export default function Home() {
       }
 
       if (processPayload?.jobId) {
-        setStatus("Queued for processing...");
+        setJobId(processPayload.jobId);
+        setStatus(`Queued for processing... (${processPayload.jobId.slice(0, 8)})`);
         pollJobStatus(processPayload.jobId);
         return;
       }
