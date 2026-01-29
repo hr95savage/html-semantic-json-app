@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
@@ -7,6 +8,10 @@ from urllib.parse import quote
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import requests
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
 from html_to_semantic_json import HTMLToSemanticJSON
 
