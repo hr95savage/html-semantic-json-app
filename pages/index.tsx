@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+type Phase = "idle" | "uploading" | "processing" | "done" | "error";
 
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
@@ -8,10 +10,32 @@ export default function Home() {
   const [status, setStatus] = useState<string>("");
   const [uploadedCount, setUploadedCount] = useState(0);
   const [jobId, setJobId] = useState<string>("");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [processingFileIndex, setProcessingFileIndex] = useState<number | null>(null);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
 
   const canLogDebug =
     typeof window !== "undefined" && window.location.hostname === "localhost";
+
+  const processingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startProcessingSimulation = (totalFiles: number) => {
+    if (processingIntervalRef.current) clearInterval(processingIntervalRef.current);
+    let index = 0;
+    setProcessingFileIndex(0);
+    processingIntervalRef.current = setInterval(() => {
+      index = (index + 1) % Math.max(1, totalFiles);
+      setProcessingFileIndex(index);
+    }, 2500);
+  };
+
+  const stopProcessingSimulation = () => {
+    if (processingIntervalRef.current) {
+      clearInterval(processingIntervalRef.current);
+      processingIntervalRef.current = null;
+    }
+    setProcessingFileIndex(null);
+  };
 
   const pollJobStatus = async (jobId: string) => {
     const poll = async () => {
@@ -43,12 +67,16 @@ export default function Home() {
         payload = null;
       }
       if (!response.ok) {
+        stopProcessingSimulation();
+        setPhase("error");
         setError(`Job check failed: ${payload?.error || text || response.statusText}`);
         setLoading(false);
         return;
       }
 
       if (payload?.status === "completed" && payload.downloadUrl) {
+        stopProcessingSimulation();
+        setPhase("done");
         setDownloadUrl(encodeURI(payload.downloadUrl));
         setStatus("Ready to download.");
         setLoading(false);
@@ -56,12 +84,14 @@ export default function Home() {
       }
 
       if (payload?.status === "failed") {
+        stopProcessingSimulation();
+        setPhase("error");
         setError(payload.error || "Processing failed.");
         setLoading(false);
         return;
       }
 
-      setStatus(`Processing files... (${jobId.slice(0, 8)})`);
+      setStatus(`Extracting... (job ${jobId.slice(0, 8)})`);
       setTimeout(poll, 5000);
     };
 
@@ -75,6 +105,8 @@ export default function Home() {
     setStatus("");
     setUploadedCount(0);
     setJobId("");
+    setPhase("idle");
+    setProcessingFileIndex(null);
 
     if (!files.length) {
       setError("Please select one or more HTML files to upload.");
@@ -83,6 +115,7 @@ export default function Home() {
 
     setLoading(true);
     try {
+      setPhase("uploading");
       setStatus("Requesting upload URLs...");
       const signResponse = await fetch(`${apiBase}/api/supabase/sign`, {
         method: "POST",
@@ -122,22 +155,26 @@ export default function Home() {
         signPayload = null;
       }
       if (!signResponse.ok) {
+        setPhase("error");
         setError(
           `Upload signing failed: ${signPayload?.error || signText || signResponse.statusText}`
         );
+        setLoading(false);
         return;
       }
 
       const uploads = signPayload?.uploads ?? [];
       if (!uploads.length) {
+        setPhase("error");
         setError("No signed uploads returned from the server.");
+        setLoading(false);
         return;
       }
 
       for (let index = 0; index < uploads.length; index += 1) {
         const upload = uploads[index];
         const file = files[index];
-        setStatus(`Uploading ${index + 1} of ${uploads.length}...`);
+        setStatus(`Uploading ${file.name} (${index + 1} of ${uploads.length})`);
         setUploadedCount(index + 1);
         const uploadUrl = encodeURI(upload.signedUrl);
         const uploadResponse = await fetch(uploadUrl, {
@@ -149,12 +186,15 @@ export default function Home() {
         });
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text();
+          setPhase("error");
           setError(`Upload failed: ${errorText || uploadResponse.statusText}`);
+          setLoading(false);
           return;
         }
       }
 
-      setStatus("Processing files...");
+      setPhase("processing");
+      setStatus("Queuing job...");
       const processResponse = await fetch(`${apiBase}/api/supabase/process`, {
         method: "POST",
         headers: {
@@ -189,6 +229,7 @@ export default function Home() {
         processPayload = null;
       }
       if (!processResponse.ok) {
+        setPhase("error");
         setError(
           `Processing failed: ${
             processPayload?.error || processText || processResponse.statusText
@@ -200,15 +241,19 @@ export default function Home() {
 
       if (processPayload?.jobId) {
         setJobId(processPayload.jobId);
-        setStatus(`Queued for processing... (${processPayload.jobId.slice(0, 8)})`);
+        setStatus("Extracting semantic JSON from your files...");
+        startProcessingSimulation(files.length);
         pollJobStatus(processPayload.jobId);
         return;
       }
 
+      setPhase("error");
       setError("Processing started, but no job ID was returned.");
       setLoading(false);
     } catch (err) {
+      setPhase("error");
       setError(`Unexpected error: ${err}`);
+      setLoading(false);
     }
   };
 
@@ -387,19 +432,87 @@ export default function Home() {
             <div
               style={{
                 marginTop: 20,
-                padding: 14,
+                padding: 18,
                 background: "#0a0a0a",
                 border: "1px solid #262626",
-                borderRadius: 8,
-                color: "#a3a3a3",
-                fontWeight: 500
+                borderRadius: 8
               }}
             >
-              {status}
-              {uploadedCount > 0 && (
-                <span style={{ marginLeft: 8 }}>
-                  ({uploadedCount}/{files.length})
-                </span>
+              <div style={{ color: "#a3a3a3", fontWeight: 500, marginBottom: 12 }}>
+                {status}
+              </div>
+              {(phase === "uploading" || phase === "processing") && files.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      height: 8,
+                      background: "#262626",
+                      borderRadius: 4,
+                      overflow: "hidden",
+                      marginBottom: 12
+                    }}
+                  >
+                    {phase === "uploading" ? (
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${(uploadedCount / files.length) * 100}%`,
+                          background: "#ffffff",
+                          borderRadius: 4,
+                          transition: "width 0.25s ease"
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          height: "100%",
+                          width: "40%",
+                          background: "#ffffff",
+                          borderRadius: 4,
+                          animation: "processingBar 1.5s ease-in-out infinite"
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ fontSize: "0.8rem", color: "#737373" }}>
+                    {phase === "uploading"
+                      ? `Uploaded ${uploadedCount} of ${files.length} file(s)`
+                      : processingFileIndex !== null
+                        ? `Processing file ${processingFileIndex + 1} of ${files.length}: ${files[processingFileIndex]?.name ?? "—"}`
+                        : `Processing ${files.length} file(s)...`}
+                  </div>
+                  {files.length > 0 && (
+                    <ul
+                      style={{
+                        marginTop: 10,
+                        marginBottom: 0,
+                        paddingLeft: 20,
+                        fontSize: "0.8rem",
+                        color: "#525252",
+                        maxHeight: 120,
+                        overflowY: "auto"
+                      }}
+                    >
+                      {files.map((f, i) => (
+                        <li
+                          key={i}
+                          style={{
+                            marginBottom: 4,
+                            color:
+                              phase === "processing" && processingFileIndex === i
+                                ? "#e5e5e5"
+                                : "#525252"
+                          }}
+                        >
+                          {phase === "processing" && processingFileIndex === i && (
+                            <span style={{ marginRight: 6 }}>●</span>
+                          )}
+                          {f.name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
           )}
