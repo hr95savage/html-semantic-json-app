@@ -86,12 +86,12 @@ def main() -> None:
 
     rest_base = f"{supabase_url}/rest/v1"
     storage_base = f"{supabase_url}/storage/v1"
-    headers = {
-        "Authorization": f"Bearer {service_role_key}",
+    headers = {        "Authorization": f"Bearer {service_role_key}",
         "apikey": service_role_key,
         "Content-Type": "application/json"
     }
 
+    print("[worker] Started, polling for jobs.", flush=True)
     while True:
         job = _fetch_next_job(rest_base, headers)
         if not job:
@@ -104,6 +104,7 @@ def main() -> None:
             continue
 
         file_paths = claimed.get("file_paths") or []
+        print(f"[worker] Claimed job {job_id}, processing {len(file_paths)} file(s).", flush=True)
         # #region agent log
         _debug_log({
             "sessionId": "debug-session",
@@ -183,6 +184,7 @@ def main() -> None:
                     "completed_at": datetime.now(timezone.utc).isoformat()
                 }
             )
+            print(f"[worker] Job {job_id} completed, output: {output_path}", flush=True)
             # #region agent log
             _debug_log({
                 "sessionId": "debug-session",
@@ -195,6 +197,7 @@ def main() -> None:
             })
             # #endregion
         except Exception as exc:
+            print(f"[worker] Job {job_id} failed: {exc}", flush=True)
             _update_job(
                 rest_base,
                 headers,
