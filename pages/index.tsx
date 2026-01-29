@@ -493,6 +493,20 @@ export default function Home() {
                         ? `Extracting file ${currentExtractingFileIndex + 1} of ${files.length}: ${files[currentExtractingFileIndex]?.name ?? "—"}`
                         : `Extracting ${files.length} file(s)...`}
                   </div>
+                  {phase === "processing" &&
+                    files.length > 0 &&
+                    currentExtractingFileIndex === files.length - 1 && (
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "#525252",
+                          marginTop: 6
+                        }}
+                      >
+                        Finishing up — large files can take 1–2 minutes. Still
+                        checking for your download…
+                      </div>
+                    )}
                   {files.length > 0 && (
                     <ul
                       style={{
