@@ -11,14 +11,33 @@ export default function Home() {
   const [uploadedCount, setUploadedCount] = useState(0);
   const [jobId, setJobId] = useState<string>("");
   const [phase, setPhase] = useState<Phase>("idle");
+  const [currentExtractingFileIndex, setCurrentExtractingFileIndex] = useState(0);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
 
   const canLogDebug =
     typeof window !== "undefined" && window.location.hostname === "localhost";
 
   const pollStartRef = useRef<number | null>(null);
+  const processingStepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  const EXTRACT_STEP_SECONDS = 8; // advance to next file every N seconds (estimate)
+
+  const stopProcessingStep = () => {
+    if (processingStepIntervalRef.current) {
+      clearInterval(processingStepIntervalRef.current);
+      processingStepIntervalRef.current = null;
+    }
+    setCurrentExtractingFileIndex(0);
+  };
+
+  const startProcessingStep = (totalFiles: number) => {
+    stopProcessingStep();
+    setCurrentExtractingFileIndex(0);
+    processingStepIntervalRef.current = setInterval(() => {
+      setCurrentExtractingFileIndex((i) => Math.min(i + 1, totalFiles - 1));
+    }, EXTRACT_STEP_SECONDS * 1000);
+  };
 
   const pollJobStatus = async (jobId: string) => {
     pollStartRef.current = Date.now();
@@ -27,6 +46,7 @@ export default function Home() {
         pollStartRef.current !== null &&
         Date.now() - pollStartRef.current > POLL_TIMEOUT_MS
       ) {
+        stopProcessingStep();
         setPhase("error");
         setError(
           "Processing is taking longer than usual. The job may have been interrupted. Please try uploading again."
@@ -63,6 +83,7 @@ export default function Home() {
         payload = null;
       }
       if (!response.ok) {
+        stopProcessingStep();
         pollStartRef.current = null;
         setPhase("error");
         setError(`Job check failed: ${payload?.error || text || response.statusText}`);
@@ -71,6 +92,7 @@ export default function Home() {
       }
 
       if (payload?.status === "completed" && payload.downloadUrl) {
+        stopProcessingStep();
         pollStartRef.current = null;
         setPhase("done");
         setDownloadUrl(encodeURI(payload.downloadUrl));
@@ -80,6 +102,7 @@ export default function Home() {
       }
 
       if (payload?.status === "failed") {
+        stopProcessingStep();
         pollStartRef.current = null;
         setPhase("error");
         setError(payload.error || "Processing failed.");
@@ -102,6 +125,7 @@ export default function Home() {
     setUploadedCount(0);
     setJobId("");
     setPhase("idle");
+    setCurrentExtractingFileIndex(0);
 
     if (!files.length) {
       setError("Please select one or more HTML files to upload.");
@@ -237,6 +261,7 @@ export default function Home() {
       if (processPayload?.jobId) {
         setJobId(processPayload.jobId);
         setStatus("Extracting semantic JSON from your files...");
+        startProcessingStep(files.length);
         pollJobStatus(processPayload.jobId);
         return;
       }
@@ -446,32 +471,27 @@ export default function Home() {
                       marginBottom: 12
                     }}
                   >
-                    {phase === "uploading" ? (
-                      <div
-                        style={{
-                          height: "100%",
-                          width: `${(uploadedCount / files.length) * 100}%`,
-                          background: "#ffffff",
-                          borderRadius: 4,
-                          transition: "width 0.25s ease"
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          height: "100%",
-                          width: "40%",
-                          background: "#ffffff",
-                          borderRadius: 4,
-                          animation: "processingBar 1.5s ease-in-out infinite"
-                        }}
-                      />
-                    )}
+                    <div
+                      style={{
+                        height: "100%",
+                        width:
+                          phase === "uploading"
+                            ? `${(uploadedCount / files.length) * 100}%`
+                            : phase === "processing"
+                              ? `${((currentExtractingFileIndex + 1) / files.length) * 100}%`
+                              : "0%",
+                        background: "#ffffff",
+                        borderRadius: 4,
+                        transition: "width 0.3s ease"
+                      }}
+                    />
                   </div>
                   <div style={{ fontSize: "0.8rem", color: "#737373" }}>
                     {phase === "uploading"
                       ? `Uploaded ${uploadedCount} of ${files.length} file(s)`
-                      : `Extracting ${files.length} file(s)...`}
+                      : phase === "processing"
+                        ? `Extracting file ${currentExtractingFileIndex + 1} of ${files.length}: ${files[currentExtractingFileIndex]?.name ?? "—"}`
+                        : `Extracting ${files.length} file(s)...`}
                   </div>
                   {files.length > 0 && (
                     <ul
@@ -486,7 +506,21 @@ export default function Home() {
                       }}
                     >
                       {files.map((f, i) => (
-                        <li key={i} style={{ marginBottom: 4 }}>
+                        <li
+                          key={i}
+                          style={{
+                            marginBottom: 4,
+                            color:
+                              phase === "processing" &&
+                              currentExtractingFileIndex === i
+                                ? "#e5e5e5"
+                                : "#525252"
+                          }}
+                        >
+                          {phase === "processing" &&
+                            currentExtractingFileIndex === i && (
+                              <span style={{ marginRight: 6 }}>●</span>
+                            )}
                           {f.name}
                         </li>
                       ))}
