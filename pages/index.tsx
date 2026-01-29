@@ -11,34 +11,14 @@ export default function Home() {
   const [uploadedCount, setUploadedCount] = useState(0);
   const [jobId, setJobId] = useState<string>("");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [processingFileIndex, setProcessingFileIndex] = useState<number | null>(null);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
 
   const canLogDebug =
     typeof window !== "undefined" && window.location.hostname === "localhost";
 
-  const processingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollStartRef = useRef<number | null>(null);
 
   const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-
-  const startProcessingSimulation = (totalFiles: number) => {
-    if (processingIntervalRef.current) clearInterval(processingIntervalRef.current);
-    let index = 0;
-    setProcessingFileIndex(0);
-    processingIntervalRef.current = setInterval(() => {
-      index = (index + 1) % Math.max(1, totalFiles);
-      setProcessingFileIndex(index);
-    }, 2500);
-  };
-
-  const stopProcessingSimulation = () => {
-    if (processingIntervalRef.current) {
-      clearInterval(processingIntervalRef.current);
-      processingIntervalRef.current = null;
-    }
-    setProcessingFileIndex(null);
-  };
 
   const pollJobStatus = async (jobId: string) => {
     pollStartRef.current = Date.now();
@@ -47,7 +27,6 @@ export default function Home() {
         pollStartRef.current !== null &&
         Date.now() - pollStartRef.current > POLL_TIMEOUT_MS
       ) {
-        stopProcessingSimulation();
         setPhase("error");
         setError(
           "Processing is taking longer than usual. The job may have been interrupted. Please try uploading again."
@@ -84,7 +63,6 @@ export default function Home() {
         payload = null;
       }
       if (!response.ok) {
-        stopProcessingSimulation();
         pollStartRef.current = null;
         setPhase("error");
         setError(`Job check failed: ${payload?.error || text || response.statusText}`);
@@ -93,7 +71,6 @@ export default function Home() {
       }
 
       if (payload?.status === "completed" && payload.downloadUrl) {
-        stopProcessingSimulation();
         pollStartRef.current = null;
         setPhase("done");
         setDownloadUrl(encodeURI(payload.downloadUrl));
@@ -103,7 +80,6 @@ export default function Home() {
       }
 
       if (payload?.status === "failed") {
-        stopProcessingSimulation();
         pollStartRef.current = null;
         setPhase("error");
         setError(payload.error || "Processing failed.");
@@ -126,7 +102,6 @@ export default function Home() {
     setUploadedCount(0);
     setJobId("");
     setPhase("idle");
-    setProcessingFileIndex(null);
 
     if (!files.length) {
       setError("Please select one or more HTML files to upload.");
@@ -262,7 +237,6 @@ export default function Home() {
       if (processPayload?.jobId) {
         setJobId(processPayload.jobId);
         setStatus("Extracting semantic JSON from your files...");
-        startProcessingSimulation(files.length);
         pollJobStatus(processPayload.jobId);
         return;
       }
@@ -497,9 +471,7 @@ export default function Home() {
                   <div style={{ fontSize: "0.8rem", color: "#737373" }}>
                     {phase === "uploading"
                       ? `Uploaded ${uploadedCount} of ${files.length} file(s)`
-                      : processingFileIndex !== null
-                        ? `Processing file ${processingFileIndex + 1} of ${files.length}: ${files[processingFileIndex]?.name ?? "—"}`
-                        : `Processing ${files.length} file(s)...`}
+                      : `Extracting ${files.length} file(s)...`}
                   </div>
                   {files.length > 0 && (
                     <ul
@@ -514,19 +486,7 @@ export default function Home() {
                       }}
                     >
                       {files.map((f, i) => (
-                        <li
-                          key={i}
-                          style={{
-                            marginBottom: 4,
-                            color:
-                              phase === "processing" && processingFileIndex === i
-                                ? "#e5e5e5"
-                                : "#525252"
-                          }}
-                        >
-                          {phase === "processing" && processingFileIndex === i && (
-                            <span style={{ marginRight: 6 }}>●</span>
-                          )}
+                        <li key={i} style={{ marginBottom: 4 }}>
                           {f.name}
                         </li>
                       ))}
