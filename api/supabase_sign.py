@@ -3,10 +3,22 @@ from datetime import datetime, timezone
 import json
 import os
 import re
+import sys
 import uuid
 from urllib.parse import quote
 
 import requests
+
+
+def _api_log(level: str, event: str, **kwargs) -> None:
+    """Structured stdout log for Vercel; all keys JSON-serializable."""
+    payload = {"ts": datetime.now(timezone.utc).isoformat(), "level": level, "event": event, **{k: v for k, v in kwargs.items() if v is not None}}
+    try:
+        line = json.dumps(payload, default=str, ensure_ascii=False)
+    except Exception:
+        line = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "level": level, "event": event})
+    print(line, flush=True)
+    sys.stdout.flush()
 
 
 def _sanitize_filename(name: str) -> str:
@@ -52,14 +64,17 @@ class handler(BaseHTTPRequestHandler):
 
         files = payload.get("files")
         if not isinstance(files, list) or not files:
+            _api_log("WARN", "sign_invalid_files")
             self._send_json({"error": "files must be a non-empty array."}, status=400)
             return
 
+        _api_log("INFO", "sign_start", files_count=len(files))
         try:
             supabase_url = _require_env("SUPABASE_URL").rstrip("/")
             service_role_key = _require_env("SUPABASE_SERVICE_ROLE_KEY")
             bucket = _require_env("SUPABASE_BUCKET")
         except ValueError as exc:
+            _api_log("ERROR", "sign_env_failed", error=str(exc))
             self._send_json({"error": str(exc)}, status=500)
             return
 
@@ -89,8 +104,16 @@ class handler(BaseHTTPRequestHandler):
                 "Content-Type": "application/json"
             }
             body = {"expiresIn": 3600}
-            response = requests.post(sign_url, headers=headers, json=body, timeout=30)
+            _api_log("INFO", "sign_request", path=path)
+            try:
+                response = requests.post(sign_url, headers=headers, json=body, timeout=30)
+            except Exception as e:
+                _api_log("ERROR", "sign_request_failed", path=path, error=str(e))
+                self._send_json({"error": "Failed to sign upload.", "details": str(e)}, status=502)
+                return
+            _api_log("INFO", "sign_response", path=path, status=response.status_code)
             if not response.ok:
+                _api_log("ERROR", "sign_bad_response", path=path, status=response.status_code, body=(response.text[:300] if response.text else None))
                 self._send_json(
                     {
                         "error": "Failed to sign upload.",
@@ -107,6 +130,7 @@ class handler(BaseHTTPRequestHandler):
                 or signed_payload.get("url")
             )
             if not signed_url:
+                _api_log("ERROR", "sign_no_url", path=path)
                 self._send_json(
                     {"error": "Signed URL missing from Supabase response."},
                     status=502
@@ -124,6 +148,7 @@ class handler(BaseHTTPRequestHandler):
                 }
             )
 
+        _api_log("INFO", "sign_ok", uploads_count=len(uploads))
         self._send_json({"uploads": uploads}, status=200)
 
     def do_GET(self):

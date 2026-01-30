@@ -1,10 +1,23 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
+import sys
 import uuid
 from datetime import datetime, timezone
 
 import requests
+
+
+def _api_log(level: str, event: str, **kwargs) -> None:
+    """Structured stdout log for Vercel; all keys JSON-serializable."""
+    payload = {"ts": datetime.now(timezone.utc).isoformat(), "level": level, "event": event, **{k: v for k, v in kwargs.items() if v is not None}}
+    try:
+        line = json.dumps(payload, default=str, ensure_ascii=False)
+    except Exception:
+        line = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "level": level, "event": event})
+    print(line, flush=True)
+    sys.stdout.flush()
+
 
 def _debug_log(payload: dict) -> None:
     try:
@@ -62,9 +75,11 @@ class handler(BaseHTTPRequestHandler):
 
         paths = payload.get("paths")
         if not isinstance(paths, list) or not paths:
+            _api_log("WARN", "process_invalid_paths")
             self._send_json({"error": "paths must be a non-empty array."}, status=400)
             return
 
+        _api_log("INFO", "process_start", paths_count=len(paths))
         # #region agent log
         _debug_log({
             "sessionId": "debug-session",
@@ -81,6 +96,7 @@ class handler(BaseHTTPRequestHandler):
             supabase_url = _require_env("SUPABASE_URL").rstrip("/")
             service_role_key = _require_env("SUPABASE_SERVICE_ROLE_KEY")
         except ValueError as exc:
+            _api_log("ERROR", "process_env_failed", error=str(exc))
             self._send_json({"error": str(exc)}, status=500)
             return
 
@@ -96,24 +112,21 @@ class handler(BaseHTTPRequestHandler):
             "status": "queued",
             "file_paths": paths
         }
-        create_response = requests.post(
-            f"{supabase_url}/rest/v1/extraction_jobs",
-            headers=rest_headers,
-            json=job_payload,
-            timeout=30
-        )
-        # #region agent log
-        _debug_log({
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "H5",
-            "location": "api/supabase_process.py:111",
-            "message": "job_create",
-            "data": {"status": create_response.status_code},
-            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000)
-        })
-        # #endregion
+        _api_log("INFO", "process_job_create_start", job_id=job_id)
+        try:
+            create_response = requests.post(
+                f"{supabase_url}/rest/v1/extraction_jobs",
+                headers=rest_headers,
+                json=job_payload,
+                timeout=30
+            )
+        except Exception as e:
+            _api_log("ERROR", "process_job_create_request_failed", job_id=job_id, error=str(e))
+            self._send_json({"error": "Failed to create job.", "details": str(e)}, status=502)
+            return
+        _api_log("INFO", "process_job_create_response", job_id=job_id, status=create_response.status_code)
         if not create_response.ok:
+            _api_log("ERROR", "process_job_create_bad_response", job_id=job_id, status=create_response.status_code, body=(create_response.text[:500] if create_response.text else None))
             self._send_json(
                 {
                     "error": "Failed to create job.",
@@ -123,6 +136,7 @@ class handler(BaseHTTPRequestHandler):
             )
             return
 
+        _api_log("INFO", "process_job_created", job_id=job_id)
         self._send_json(
             {
                 "jobId": job_id,
