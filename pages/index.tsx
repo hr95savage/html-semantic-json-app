@@ -133,9 +133,11 @@ export default function Home() {
     }
 
     setLoading(true);
+    let lastStep = "request";
     try {
       setPhase("uploading");
       setStatus("Requesting upload URLs...");
+      lastStep = "sign";
       const signResponse = await fetch(`${apiBase}/api/supabase/sign`, {
         method: "POST",
         headers: {
@@ -195,7 +197,10 @@ export default function Home() {
         const file = files[index];
         setStatus(`Uploading ${file.name} (${index + 1} of ${uploads.length})`);
         setUploadedCount(index + 1);
-        const uploadUrl = encodeURI(upload.signedUrl);
+        lastStep = "upload";
+        // Normalize URL: spaces and other chars can cause "Failed to fetch"
+        const rawUrl = upload.signedUrl ?? "";
+        const uploadUrl = rawUrl.replace(/ /g, "%20");
         const uploadResponse = await fetch(uploadUrl, {
           method: "PUT",
           headers: {
@@ -214,6 +219,7 @@ export default function Home() {
 
       setPhase("processing");
       setStatus("Queuing job...");
+      lastStep = "process";
       const processResponse = await fetch(`${apiBase}/api/supabase/process`, {
         method: "POST",
         headers: {
@@ -271,7 +277,22 @@ export default function Home() {
       setLoading(false);
     } catch (err) {
       setPhase("error");
-      setError(`Unexpected error: ${err}`);
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === "Failed to fetch") {
+        const stepHint =
+          lastStep === "sign"
+            ? " (getting upload URLs)"
+            : lastStep === "upload"
+              ? " (uploading file to storage)"
+              : lastStep === "process"
+                ? " (creating job)"
+                : "";
+        setError(
+          `Network error${stepHint}: request failed. Check your connection, try again, or ensure Supabase Storage CORS allows this site (Dashboard → Storage → bucket CORS).`
+        );
+      } else {
+        setError(`Unexpected error: ${message}`);
+      }
       setLoading(false);
     }
   };
